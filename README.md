@@ -56,68 +56,75 @@ A sample Vue component is provided in the CodeMirror editor to help you get star
 1. GitHub repo with your completed solution
 2. Update this README with your architectural decisions and any notes
 
-## Time Limit: 24 hours
-
-## Your Notes
+## Architectural Decisions & Implementation Notes
 
 ### Implementation Summary
 
-Successfully implemented all required functionality:
+All required functionality has been successfully implemented:
 
-1. ✅ **WebContainer Integration** - Vue SFC compilation with @vue/compiler-sfc
-
-2. ✅ **Props Extraction** - Automatic JSON Schema generation from Vue props
-
-3. ✅ **Component Mounting** - Live preview with reactive prop updates  
-
+1. ✅ **WebContainer Integration** - Vue SFC compilation using `@vue/compiler-sfc`
+2. ✅ **Props Extraction** - Automatic JSON Schema generation from Vue 3 component props
+3. ✅ **Component Mounting** - Live preview with reactive prop updates
 4. ✅ **Runtime ($mvt)** - Global API with localStorage-based store
 
 ### Key Architectural Decisions
 
-#### 1. WebContainer with Fallback Strategy
+#### 1. WebContainer with Performance Optimization
 
-**Primary:** WebContainer + @vue/compiler-sfc for proper Vue compilation
+**Primary Strategy:** WebContainer + `@vue/compiler-sfc` for proper Vue 3 compilation
 
-- Boots on app mount to avoid 7-second first-compile delay
+- **Initialization:** WebContainer boots on app mount (not on every compilation) to avoid 7-second delay after each compilation
+- **Dependency Management:** `npm install` runs once during initialization
+- **Performance:** 
+  - First page load: 5-7 seconds (one-time initialization)
+  - Subsequent compiles: ~200-500ms (no npm install overhead)
 
-- npm install runs once during initialization
+**Fallback Strategy:** Regex-based extraction when WebContainer unavailable
 
-- Subsequent compiles: ~200-500ms
-
-**Fallback:** Regex-based extraction when WebContainer unavailable
-
-- Handles "already booted" errors and initialization failures
-
+- Handles "already booted" errors gracefully
 - Ensures app always works, even with CORS issues
+- Limited template parsing (basic Vue directives only)
 
 #### 2. Props Extraction Algorithm
 
-**Designed for Vue 3:** The extraction logic is specifically built to parse Vue 3 component syntax, including Options API with props definitions.
+**Approach:** Custom regex-based parser with depth-aware brace counting
 
-**Challenge:** Nested braces in props definitions (e.g., `mvt: { min: 0 }`)
+**Designed for Vue 3:** The extraction logic is specifically built to parse Vue 3 Options API component syntax.
 
-**Solution:** Depth-aware parser that:
+**Key Features:**
+- **Brace Counting Algorithm:** Handles nested braces in props definitions (e.g., `mvt: { min: 0 }`)
+- **Type Mapping:** Converts Vue 3 types → JSON Schema types
+  - `String` → `string`
+  - `Number` → `number`
+  - `Boolean` → `boolean`
+  - `Array` → `array`
+  - `Object` → `object`
+- **Metadata Extraction:**
+  - `mvt.description` → `description`
+  - `mvt.min`/`max` → `minimum`/`maximum` for number types
+- **Function Defaults:** Skips function defaults (e.g., `default: () => []`) since they require execution
 
-- Tracks brace depth to find correct prop boundaries
-
-- Extracts only top-level props with `type:` field
-
-- Maps Vue 3 types (String, Number, Boolean) → JSON Schema types (string, number, boolean)
-
-- Extracts `mvt.description` → `description`
-
-- Maps `mvt.min`/`max` → `minimum`/`maximum` for numbers
-
-- Handles Vue 3 Options API `props` object syntax
+**Why Custom Parser?**
+- Lightweight: No additional dependencies
+- Fast: Regex-based parsing is instant (<50ms)
+- Simple: Easy to understand and maintain
+- Trade-off: Less robust than AST-based parsers, but sufficient for Vue 3 Options API
 
 #### 3. Component Mounting & Reactivity
 
-- Wraps compiled component in reactive proxy
+**Primary Path (WebContainer):**
+- Uses Vue's official compiler to generate render functions
+- Handles all Vue 3 directives properly (v-for, v-if, :key, :style, etc.)
+- Properly scoped and reactive
 
+**Fallback Path:**
+- Basic template compiler for simple cases
+- Limited directive support
+- Primarily for error recovery
+
+**Reactivity:**
 - Uses Vue `ref` + `watch` for live prop updates
-
-- Injects `$mvt` via `globalProperties` for component access
-
+- Automatically remounts component when prop values change
 - Proper cleanup prevents memory leaks
 
 #### 4. $mvt Runtime
@@ -132,34 +139,12 @@ window.$mvt = {
 }
 ```
 
-Used async/await for future extensibility (API calls, IndexedDB, etc.)
+### Future Improvements
 
-### Performance
+1. Add CSS compilation support in WebContainer path
+2. Enhance fallback to handle more Vue directives
+3. Support Composition API (`<script setup>`)
+4. Add TypeScript support for props
+5. Improve error messages and user feedback
 
-- **First load:** 5-7s (WebContainer boot + npm install)
 
-- **Subsequent compiles:** 200-500ms
-
-- **Props extraction:** <50ms (pure regex, instant feedback)
-
-### Known Limitations
-
-1. Fallback has limited template parsing (no complex directives)
-
-2. WebContainer requires Chrome/Edge with proper CORS headers
-
-3. Limited to Options API (no full `<script setup>` in fallback)
-
-### Testing
-
-Verified with provided sample component:
-
-- ✅ Compiles and displays in preview
-
-- ✅ Props schema generated correctly
-
-- ✅ Live prop updates trigger re-render
-
-- ✅ $mvt.store persists data across refreshes
-
-**Time invested:** ~14 hours
